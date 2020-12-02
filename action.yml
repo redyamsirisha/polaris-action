@@ -1,0 +1,17 @@
+name: 'Polaris Action'
+description: 'Initiate SAST scans based on code changes and pushs scan results for display in GitHub.'
+author: 'DevSecOps Team @ Synopsys SIG'
+branding:
+  icon: 'shield'
+  color: 'purple'
+inputs:
+  polarisServerUrl:
+    description: 'The server Host URL for Polaris tool eg https://abc.polaris.synopsys.com'
+    required: true
+  polarisAccessToken:
+    description: 'The server access token for Polaris tool'
+    required: true
+    
+runs:
+  using: 'node12'
+  main: 'index.js'
