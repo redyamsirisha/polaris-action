@@ -43,8 +43,8 @@ function getIssues() {
             .set('Authorization', 'Bearer '+token)
             let project_id = projectResponse.body.data[0].id;
             let branch_id = projectResponse.body.included[0].id;
-            console.log(project_id);
-            console.log(branch_id);
+            //console.log(project_id);
+            //console.log(branch_id);
 
             const issuesResponse = await superagent.get(polarisServerUrl+issuesAPI)
             .query('project-id='+project_id)
@@ -52,12 +52,54 @@ function getIssues() {
             .query('filter[issue][status][$eq]=opened&include[issue][]=severity&page[offset]=0&page[limit]=1000000000')
             .query('include[issue][]=issue-type&include[issue][]=path&include[issue][]=related-taxa')
             .set('Authorization', 'Bearer '+token)
-            let issuesResponseData = issuesResponse.body.data.length;
-            let issuesResponseIncluded = issuesResponse.body.included;
-            console.log(issuesResponseData);
-            console.log(issuesResponseIncluded[0].attributes);
+            .accept('application/json')
+            var issuesResponseData = issuesResponse.body.data;
+            var issuesResponseIncluded = issuesResponse.body.included;
             
+            var issues = [];
 
+            for (i = 0; i < issuesResponseData.length; i++) {
+                let issue = {issue_key: issuesResponseData[i].attributes['issue-key']};
+                issue.finding_key = issuesResponseData[i].attributes['finding-key'];
+                issue.path_id = issuesResponseData[i].relationships.path.data.id;
+                issue.issue_type_id = issuesResponseData[i].relationships['issue-type'].data.id;
+                issue.run_id = issuesResponseData[i].relationships['latest-observed-on-run'].data.id;
+                issue.severity = issuesResponseData[i].relationships.severity.data.id;
+                issue.cwe_id = issuesResponseData[i].relationships['related-taxa'].data[0].id;
+
+                for (j = 0; j < issuesResponseIncluded.length; j++) {
+                    if(issue.issue_type_id === issuesResponseIncluded[j].id){
+                        issue.issue_name = issuesResponseIncluded[j].attributes.name;
+                        issue.issue_desc = issuesResponseIncluded[j].attributes.description;
+                    } else if(issue.cwe_id === issuesResponseIncluded[j].id){
+                        issue.cwe_map = 'cwe-'+issue.cwe_id+' : '+issuesResponseIncluded[j].attributes.description;
+                        issue.cwe_tags = issuesResponseIncluded[j].attributes.name;
+                    }
+                }
+
+                // API call to get main event line number
+                const issuesEventResponse = await superagent.get(polarisServerUrl+eventsAPI)
+                .query('finding-key='+issue.finding_key)
+                .query('run-id='+issue.run_id)
+                .set('Authorization', 'Bearer '+token)
+                .accept('application/json')
+                var issuesEventResponseData=issuesEventResponse.body.data;
+                issue.line_number = issuesEventResponseData[0]['main-event-line-number'];
+                var events = issuesEventResponseData[0].events;
+
+                for(k=0; k < events.length; k++)
+                {
+                    if(events[k]['event-tag'] === 'remediation'){
+                        issue.issue_recommendation = events[k]['event-description'];
+                    } else if (events[k]['event-type'] === 'MAIN'){
+                        issue.issue_path = events[k].filePath;
+                    }
+
+                }   
+                issues.push(issue);
+            }
+            console.log(issues);
+        
         } catch (error) {
             console.log(error.response.body);
         }
@@ -67,11 +109,11 @@ function getIssues() {
 // none,note,warning,error
 const impactToLevel = (impact => {
     switch (impact) {
-        case "High":
+        case "high":
           return "error";
-        case "Medium":
+        case "medium":
           return "warning";
-        case "Low":
+        case "low":
           return "note";
         default:
           return "none";
