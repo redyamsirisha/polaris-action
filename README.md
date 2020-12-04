@@ -14,7 +14,7 @@ The Polaris Github Action runs polaris scan, retrieves the scan results and gene
 ## Example YAML config
 
 ```yaml
-name: "Polaris Scan"
+name: "Polaris Scan Action"
 
 on:
   push:
@@ -41,10 +41,11 @@ jobs:
       with:
         polarisServerUrl: ${{secrets.POLARIS_SERVER_URL}}
         polarisAccessToken: ${{secrets.POLARIS_ACCESS_TOKEN}}
+        polarisProjectName: insecure-bank
 
     - name: Upload SARIF file
       uses: github/codeql-action/upload-sarif@v1
       with:
         # Path to SARIF file relative to the root of the repository
-        sarif_file: polaris-results.sarif.json
+        sarif_file: polaris-scan-results.sarif.json
 ```
