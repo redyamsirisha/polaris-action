@@ -3,12 +3,11 @@ const shell = require('shelljs');
 const fs = require('fs');
 const superagent = require('superagent');
 
-//const polarisServerUrl = core.getInput('polarisServerUrl');
-//const polarisAccessToken = core.getInput('polarisAccessToken');
+const polarisServerUrl = core.getInput('polarisServerUrl');
+const polarisAccessToken = core.getInput('polarisAccessToken');
+const polarisProjectName = core.getInput('polarisProjectName');
 
-const polarisServerUrl = 'https://csprod.polaris.synopsys.com'
-const polarisAccessToken = 'erbsrhcmj513j678hil89j5nsesqfvventnj8o9gin0l9stmjv20'
-const sarifOutputFileName = core.getInput('polaris-results-sarif');
+const sarifOutputFileName = 'polaris-scan-results.sarif.json'
 var rcode = -1
 
 //Polaris API
@@ -18,6 +17,7 @@ const issuesAPI='/api/query/v1/issues'
 const eventsAPI='/api/code-analysis/v0/events-with-source'
 
 //invoke polaris scan
+console.log('Invoking polaris scan');
 //shell.exec(`export POLARIS_SERVER_URL=${polarisServerUrl}`)
 //shell.exec(`export POLARIS_ACCESS_TOKEN=${polarisAccessToken}`)
 //shell.exec(`wget -q ${polarisServerUrl}/api/tools/polaris_cli-linux64.zip`)
@@ -31,21 +31,21 @@ getIssues()
 function getIssues() {
     (async () => {
         try {
+            //API Call to get token
             const tokenResponse = await superagent.post(polarisServerUrl+authAPI)
             .send({ accesstoken : polarisAccessToken})
             .set('Content-Type', 'application/x-www-form-urlencoded')
             let token = tokenResponse.body.jwt;
-            //console.log(token);
 
+            //API Call to get projects
             const projectResponse = await superagent.get(polarisServerUrl+projectsAPI)
-            .query('filter[project][name][$eq]=sig-devsecops/insecure-bank')
+            .query('filter[project][name][$eq]='+polarisProjectName)
             .query('include[project][]=branches&page[limit]=500&page[offset]=0')
             .set('Authorization', 'Bearer '+token)
             let project_id = projectResponse.body.data[0].id;
             let branch_id = projectResponse.body.included[0].id;
-            //console.log(project_id);
-            //console.log(branch_id);
 
+            //API Call to get list of issues
             const issuesResponse = await superagent.get(polarisServerUrl+issuesAPI)
             .query('project-id='+project_id)
             .query('branch-id='+branch_id)
@@ -65,16 +65,27 @@ function getIssues() {
                 issue.issue_type_id = issuesResponseData[i].relationships['issue-type'].data.id;
                 issue.run_id = issuesResponseData[i].relationships['latest-observed-on-run'].data.id;
                 issue.severity = issuesResponseData[i].relationships.severity.data.id;
-                issue.cwe_id = issuesResponseData[i].relationships['related-taxa'].data[0].id;
+
+                if(issuesResponseData[i].relationships['related-taxa'].data.length !== 0){
+                    issue.cwe_id = issuesResponseData[i].relationships['related-taxa'].data[0].id;
+                }
+                else{
+                    issue.cwe_id = 'none';
+                }
 
                 for (j = 0; j < issuesResponseIncluded.length; j++) {
                     if(issue.issue_type_id === issuesResponseIncluded[j].id){
                         issue.issue_name = issuesResponseIncluded[j].attributes.name;
                         issue.issue_desc = issuesResponseIncluded[j].attributes.description;
                     } else if(issue.cwe_id === issuesResponseIncluded[j].id){
-                        issue.cwe_map = 'cwe-'+issue.cwe_id+' : '+issuesResponseIncluded[j].attributes.description;
+                        issue.cwe_map = 'CWE-'+issue.cwe_id+' : '+issuesResponseIncluded[j].attributes.description;
                         issue.cwe_tags = issuesResponseIncluded[j].attributes.name;
                     }
+                }
+
+                if(issue.cwe_id === 'none'){
+                    issue.cwe_map = 'CWE-'+issue.cwe_id+' : '+issue.issue_desc;
+                    issue.cwe_tags = 'none';
                 }
 
                 // API call to get main event line number
@@ -91,6 +102,7 @@ function getIssues() {
                 {
                     if(events[k]['event-tag'] === 'remediation'){
                         issue.issue_recommendation = events[k]['event-description'];
+                        issue.issue_desc = issue.issue_desc +' '+ issue.issue_recommendation
                     } else if (events[k]['event-type'] === 'MAIN'){
                         issue.issue_path = events[k].filePath;
                     }
@@ -98,10 +110,14 @@ function getIssues() {
                 }   
                 issues.push(issue);
             }
-            console.log(issues);
+            //console.log(issues);
+
+            //generate SARIF Report
+            convertPipelineResultFileToSarifFile(issues, sarifOutputFileName);
         
         } catch (error) {
-            console.log(error.response.body);
+            //console.log(error.response.body);
+            core.setFailed(error.message);
         }
     })();
 }
@@ -121,37 +137,33 @@ const impactToLevel = (impact => {
 })
 
 const addRuleToRules = (issue,rules) => {
-    if (rules.filter(ruleItem => ruleItem.id===issue.checkerProperties.cweCategory).length>0) {
+    if (rules.filter(ruleItem => ruleItem.id===issue.cwe_id).length>0) {
         return null;
     }
     let rule = {
-        id: issue.checkerProperties.cweCategory,
+        id: issue.cwe_id,
         shortDescription: {
-            text: "CWE-"+issue.checkerProperties.cweCategory+": "+issue.checkerProperties.subcategoryShortDescription
+            text: "CWE-"+issue.cwe_id+": "+issue.issue_name
         },
-        helpUri: "https://cwe.mitre.org/data/definitions/"+issue.checkerProperties.cweCategory+".html",
+        helpUri: "https://cwe.mitre.org/data/definitions/"+issue.cwe_id+".html",
         help: {
-            text: "CWE-"+issue.checkerProperties.cweCategory+": "+issue.checkerProperties.subcategoryLongDescription
+            text: issue.cwe_map
           },
         properties: {
-            category: issue.checkerProperties.category
+            category: issue.cwe_tags
         },
         defaultConfiguration: {
-            level: impactToLevel(issue.checkerProperties.impact)
+            level: impactToLevel(issue.severity)
         }
     }
 
     return rule;
 }
 
-const convertPipelineResultFileToSarifFile = (inputFileName,outputFileName) => {
-    var results = {};
+const convertPipelineResultFileToSarifFile = (inputData,outputFileName) => {
+    console.log('Generating SARIF Report');
 
-    let rawdata = fs.readFileSync(inputFileName);
-    results = JSON.parse(rawdata);
-    console.log('Pipeline Scan results file found and parsed - validated JSON file');
-
-    let issues = results.issues;
+    let issues = inputData;
     console.log('Issues count: '+issues.length);
 
     let rules=[];
@@ -164,37 +176,27 @@ const convertPipelineResultFileToSarifFile = (inputFileName,outputFileName) => {
             rules.push(rule);
         }
 
-        let location = {}
-        let eventDescription = ""
-        issue.events.map(event => {
-            if (event.main==true) {
-                location = {
-                    physicalLocation: {
-                        artifactLocation: {
-                            uri: event.strippedFilePathname
-                        },
-                        region: {
-                            startLine: parseInt(event.lineNumber)
-                        }
-                    }
+        let location = {
+            physicalLocation: {
+                artifactLocation: {
+                    uri: issue.issue_path
+                },
+                region: {
+                    startLine: parseInt(issue.line_number)
                 }
-                eventDescription = eventDescription.concat(event.eventDescription)
             }
-            else if (event.eventTag == "remediation") {
-                eventDescription = eventDescription.concat(event.eventDescription)
-            }
-        })
+        }
 
         // get the severity according to SARIF
-        let sarImp = impactToLevel(issue.checkerProperties.impact);
+        let sarImp = impactToLevel(issue.severity);
         // populate issue
         let resultItem = {
             level: sarImp,
             message: {
-                text: eventDescription,
+                text: issue.issue_desc,
             },
             locations: [location],
-            ruleId: issue.checkerProperties.cweCategory
+            ruleId: issue.cwe_id
         }
         return resultItem;
     })
@@ -216,15 +218,12 @@ const convertPipelineResultFileToSarifFile = (inputFileName,outputFileName) => {
         ]
     };
 
+    //SARIF Output
+    //console.log(JSON.stringify(sarifFileJSONContent, null, 2));
+
     // save to file
     fs.writeFileSync(outputFileName,JSON.stringify(sarifFileJSONContent, null, 2));
     console.log('SARIF file created: '+outputFileName);
-}
-
-try {
-    convertPipelineResultFileToSarifFile(pipelineInputFileName,sarifOutputFileName);
-} catch (error) {
-    core.setFailed(error.message);
 }
 
 module.exports = {

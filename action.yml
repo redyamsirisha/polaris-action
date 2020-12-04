@@ -11,6 +11,9 @@ inputs:
   polarisAccessToken:
     description: 'The server access token for Polaris tool'
     required: true
+  polarisProjectName:
+    description: 'The name of the Polaris project'
+    required: true
     
 runs:
   using: 'node12'
