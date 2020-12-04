@@ -18,14 +18,14 @@ try {
     const eventsAPI='/api/code-analysis/v0/events-with-source'
 
     //invoke polaris scan
-    console.log('Invoking polaris scan');
+    /*console.log('Invoking polaris scan');
     shell.exec(`export POLARIS_SERVER_URL=${polarisServerUrl}`)
     shell.exec(`export POLARIS_ACCESS_TOKEN=${polarisAccessToken}`)
     shell.exec(`wget -q ${polarisServerUrl}/api/tools/polaris_cli-linux64.zip`)
     shell.exec(`unzip -j polaris_cli-linux64.zip -d /tmp`)
     shell.exec(`/tmp/polaris analyze -w`)
 
-    /*if (rcode != 0){
+    if (rcode != 0){
         core.error(`Error: Polaris Execution failed and returncode is ${rcode}`);
         core.setFailed(error.message);
     }*/
