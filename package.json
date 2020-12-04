@@ -31,7 +31,8 @@
   "homepage": "https://github.com/synopsys-sig/intelligent-security-scan#readme",
   "dependencies": {
     "@actions/core": "^1.2.6",
+    "fs": "0.0.1-security",
     "shelljs": "^0.8.4",
-    "fs": "0.0.1-security"
+    "superagent": "^6.1.0"
   }
 }

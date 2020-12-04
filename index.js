@@ -1,11 +1,21 @@
 const core = require('@actions/core');
 const shell = require('shelljs');
 const fs = require('fs');
+const superagent = require('superagent');
 
-const polarisServerUrl = core.getInput('polarisServerUrl');
-const polarisAccessToken = core.getInput('polarisAccessToken');
+//const polarisServerUrl = core.getInput('polarisServerUrl');
+//const polarisAccessToken = core.getInput('polarisAccessToken');
+
+const polarisServerUrl = 'https://csprod.polaris.synopsys.com'
+const polarisAccessToken = 'erbsrhcmj513j678hil89j5nsesqfvventnj8o9gin0l9stmjv20'
 const sarifOutputFileName = core.getInput('polaris-results-sarif');
 var rcode = -1
+
+//Polaris API
+const authAPI='/api/auth/v1/authenticate'
+const projectsAPI='/api/common/v0/projects'
+const issuesAPI='/api/query/v1/issues'
+const eventsAPI='/api/code-analysis/v0/events-with-source'
 
 //invoke polaris scan
 //shell.exec(`export POLARIS_SERVER_URL=${polarisServerUrl}`)
@@ -14,9 +24,45 @@ var rcode = -1
 //shell.exec(`unzip -j polaris_cli-linux64.zip -d /tmp`)
 //shell.exec(`/tmp/polaris analyze -w`)
 
-//fetch polaris scan results
+console.log("Fetching Polaris Results")
 
-//
+getIssues()
+
+function getIssues() {
+    (async () => {
+        try {
+            const tokenResponse = await superagent.post(polarisServerUrl+authAPI)
+            .send({ accesstoken : polarisAccessToken})
+            .set('Content-Type', 'application/x-www-form-urlencoded')
+            let token = tokenResponse.body.jwt;
+            //console.log(token);
+
+            const projectResponse = await superagent.get(polarisServerUrl+projectsAPI)
+            .query('filter[project][name][$eq]=sig-devsecops/insecure-bank')
+            .query('include[project][]=branches&page[limit]=500&page[offset]=0')
+            .set('Authorization', 'Bearer '+token)
+            let project_id = projectResponse.body.data[0].id;
+            let branch_id = projectResponse.body.included[0].id;
+            console.log(project_id);
+            console.log(branch_id);
+
+            const issuesResponse = await superagent.get(polarisServerUrl+issuesAPI)
+            .query('project-id='+project_id)
+            .query('branch-id='+branch_id)
+            .query('filter[issue][status][$eq]=opened&include[issue][]=severity&page[offset]=0&page[limit]=1000000000')
+            .query('include[issue][]=issue-type&include[issue][]=path&include[issue][]=related-taxa')
+            .set('Authorization', 'Bearer '+token)
+            let issuesResponseData = issuesResponse.body.data.length;
+            let issuesResponseIncluded = issuesResponse.body.included;
+            console.log(issuesResponseData);
+            console.log(issuesResponseIncluded[0].attributes);
+            
+
+        } catch (error) {
+            console.log(error.response.body);
+        }
+    })();
+}
 
 // none,note,warning,error
 const impactToLevel = (impact => {
