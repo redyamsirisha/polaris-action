@@ -19,11 +19,11 @@ try {
 
     //invoke polaris scan
     console.log('Invoking polaris scan');
-    shell.exec(`export POLARIS_SERVER_URL=${polarisServerUrl}`)
-    shell.exec(`export POLARIS_ACCESS_TOKEN=${polarisAccessToken}`)
+    //shell.exec(`export POLARIS_SERVER_URL=${polarisServerUrl}`)
+    //shell.exec(`export POLARIS_ACCESS_TOKEN=${polarisAccessToken}`)
     shell.exec(`wget -q ${polarisServerUrl}/api/tools/polaris_cli-linux64.zip`)
     shell.exec(`unzip -j polaris_cli-linux64.zip -d /tmp`)
-    rcode = shell.exec(`/tmp/polaris analyze -w`).code;
+    rcode = shell.exec(`export POLARIS_SERVER_URL=${polarisServerUrl} && export POLARIS_ACCESS_TOKEN=${polarisAccessToken} && /tmp/polaris analyze -w`).code;
 
     if (rcode != 0){
         core.error(`Error: Polaris Execution failed and returncode is ${rcode}`);
