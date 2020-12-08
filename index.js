@@ -36,11 +36,13 @@ try {
         (async () => {
             try {
                 //API Call to get token
+                console.log("-------- Step 1------------")
                 const tokenResponse = await superagent.post(polarisServerUrl+authAPI)
                 .send({ accesstoken : polarisAccessToken})
                 .set('Content-Type', 'application/x-www-form-urlencoded')
                 let token = tokenResponse.body.jwt;
 
+                console.log("-------- Step 2------------")
                 //API Call to get projects
                 const projectResponse = await superagent.get(polarisServerUrl+projectsAPI)
                 .query('filter[project][name][$eq]='+polarisProjectName)
@@ -49,6 +51,7 @@ try {
                 let project_id = projectResponse.body.data[0].id;
                 let branch_id = projectResponse.body.included[0].id;
 
+                console.log("-------- Step 3------------")
                 //API Call to get list of issues
                 const issuesResponse = await superagent.get(polarisServerUrl+issuesAPI)
                 .query('project-id='+project_id)
@@ -60,6 +63,7 @@ try {
                 var issuesResponseData = issuesResponse.body.data;
                 var issuesResponseIncluded = issuesResponse.body.included;
                 
+                console.log("-------- Step 4------------")
                 var issues = [];
 
                 for (i = 0; i < issuesResponseData.length; i++) {
@@ -87,6 +91,7 @@ try {
                         }
                     }
 
+                    console.log("-------- Step 5------------")
                     if(issue.cwe_id === 'none'){
                         issue.cwe_map = 'CWE-'+issue.cwe_id+' : '+issue.issue_desc;
                         issue.cwe_tags = 'none';
@@ -101,6 +106,8 @@ try {
                     var issuesEventResponseData=issuesEventResponse.body.data;
                     issue.line_number = issuesEventResponseData[0]['main-event-line-number'];
                     var events = issuesEventResponseData[0].events;
+
+                    console.log("-------- Step 6 ------------")
 
                     for(k=0; k < events.length; k++)
                     {
