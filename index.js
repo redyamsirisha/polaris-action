@@ -120,7 +120,11 @@ try {
                 convertPipelineResultFileToSarifFile(issues, sarifOutputFileName);
             
             } catch (error) {
-                console.log(error.response.body);
+                //console.log(error.response.body);
+                console.log('error in function polaris: ' + error);
+                console.log('error in function polaris: ' + err);
+                var stack = new Error().stack
+                console.log( stack )
                 console.trace("Polaris Parsing failed");
                 core.setFailed(error.message);
             }
@@ -236,8 +240,11 @@ try {
     }
 }
 catch (error) {
-    console.log(error.response.body);
-    console.trace("Polaris Parsing failed");
+    console.log('error in function polaris: ' + error);
+    console.log('error in function polaris: ' + err);
+    var stack = new Error().stack
+    console.log( stack )
+    console.trace("Polaris execution failed");
     core.setFailed(error.message);
 }
 
