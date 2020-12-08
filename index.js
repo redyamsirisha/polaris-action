@@ -91,7 +91,6 @@ try {
                         }
                     }
 
-                    console.log("-------- Step 5------------")
                     if(issue.cwe_id === 'none'){
                         issue.cwe_map = 'CWE-'+issue.cwe_id+' : '+issue.issue_desc;
                         issue.cwe_tags = 'none';
@@ -107,8 +106,6 @@ try {
                     issue.line_number = issuesEventResponseData[0]['main-event-line-number'];
                     var events = issuesEventResponseData[0].events;
 
-                    console.log("-------- Step 6 ------------")
-
                     for(k=0; k < events.length; k++)
                     {
                         if(events[k]['event-tag'] === 'remediation'){
@@ -121,14 +118,15 @@ try {
                     }   
                     issues.push(issue);
                 }
-                //console.log(issues);
+                console.log('Issues list');
+                console.log(issues);
 
                 //generate SARIF Report
                 convertPipelineResultFileToSarifFile(issues, sarifOutputFileName);
             
             } catch (error) {
                 //console.log(error.response.body);
-                print(Error().stack);
+                console.log(error.reponse);
                 console.trace();
                 var stack = new Error().stack
                 console.log( stack )
@@ -238,7 +236,8 @@ try {
         };
 
         //SARIF Output
-        //console.log(JSON.stringify(sarifFileJSONContent, null, 2));
+        console.log('SARIF file created: ');
+        console.log(JSON.stringify(sarifFileJSONContent, null, 2));
 
         // save to file
         fs.writeFileSync(outputFileName,JSON.stringify(sarifFileJSONContent, null, 2));
