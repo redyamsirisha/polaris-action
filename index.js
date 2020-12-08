@@ -121,10 +121,13 @@ try {
             
             } catch (error) {
                 //console.log(error.response.body);
-                console.log('error in function polaris: ' + error);
-                console.log('error in function polaris: ' + err);
+                print(Error().stack);
+                console.trace();
                 var stack = new Error().stack
                 console.log( stack )
+                assert.isNotOk(error,'Promise error');
+                done();
+                console.log('error in function polaris: ' + error)
                 console.trace("Polaris Parsing failed");
                 core.setFailed(error.message);
             }
