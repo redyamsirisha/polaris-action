@@ -19,7 +19,7 @@ try {
     const eventsAPI='/api/code-analysis/v0/events-with-source'
 
     //invoke polaris scan
-    /*console.log('Invoking polaris scan');
+    console.log('Invoking polaris scan');
     shell.exec(`wget -q ${polarisServerUrl}/api/tools/polaris_cli-linux64.zip`)
     shell.exec(`unzip -j polaris_cli-linux64.zip -d /tmp`)
     rcode = shell.exec(`export POLARIS_SERVER_URL=${polarisServerUrl} && export POLARIS_ACCESS_TOKEN=${polarisAccessToken} && /tmp/polaris analyze -w ${polarisAdditionalArgs}`).code;
@@ -27,7 +27,7 @@ try {
     if (rcode != 0){
         core.error(`Error: Polaris Execution failed and returncode is ${rcode}`);
         core.setFailed(error.message);
-    }*/
+    }
 
     console.log("Fetching Polaris Results")
 
