@@ -7,6 +7,7 @@ try {
     const polarisServerUrl = core.getInput('polarisServerUrl');
     const polarisAccessToken = core.getInput('polarisAccessToken');
     const polarisProjectName = core.getInput('polarisProjectName');
+    const polarisAdditionalArgs = core.getInput('polarisAdditionalArgs');
 
     const sarifOutputFileName = 'polaris-scan-results.sarif.json'
     var rcode = -1
@@ -18,15 +19,15 @@ try {
     const eventsAPI='/api/code-analysis/v0/events-with-source'
 
     //invoke polaris scan
-    /*console.log('Invoking polaris scan');
+    console.log('Invoking polaris scan');
     shell.exec(`wget -q ${polarisServerUrl}/api/tools/polaris_cli-linux64.zip`)
     shell.exec(`unzip -j polaris_cli-linux64.zip -d /tmp`)
-    rcode = shell.exec(`export POLARIS_SERVER_URL=${polarisServerUrl} && export POLARIS_ACCESS_TOKEN=${polarisAccessToken} && /tmp/polaris analyze -w`).code;
+    rcode = shell.exec(`export POLARIS_SERVER_URL=${polarisServerUrl} && export POLARIS_ACCESS_TOKEN=${polarisAccessToken} && /tmp/polaris analyze -w ${polarisAdditionalArgs}`).code;
 
     if (rcode != 0){
         core.error(`Error: Polaris Execution failed and returncode is ${rcode}`);
         core.setFailed(error.message);
-    }*/
+    }
 
     console.log("Fetching Polaris Results")
 
@@ -36,22 +37,27 @@ try {
         (async () => {
             try {
                 //API Call to get token
-                console.log("-------- Step 1------------")
                 const tokenResponse = await superagent.post(polarisServerUrl+authAPI)
                 .send({ accesstoken : polarisAccessToken})
                 .set('Content-Type', 'application/x-www-form-urlencoded')
                 let token = tokenResponse.body.jwt;
 
-                console.log("-------- Step 2------------")
                 //API Call to get projects
                 const projectResponse = await superagent.get(polarisServerUrl+projectsAPI)
                 .query('filter[project][name][$eq]='+polarisProjectName)
                 .query('include[project][]=branches&page[limit]=500&page[offset]=0')
                 .set('Authorization', 'Bearer '+token)
                 let project_id = projectResponse.body.data[0].id;
-                let branch_id = projectResponse.body.included[0].id;
+                
+                let branch_included = projectResponse.body.included;
+                let branch_id;
 
-                console.log("-------- Step 3------------")
+                for (i = 0; i < branch_included.length; i++) {
+                    if(projectResponse.body.included[i].attributes['main-for-project'] === true){
+                        branch_id = projectResponse.body.included[i].id;
+                    }
+                }
+
                 //API Call to get list of issues
                 const issuesResponse = await superagent.get(polarisServerUrl+issuesAPI)
                 .query('project-id='+project_id)
@@ -63,21 +69,58 @@ try {
                 var issuesResponseData = issuesResponse.body.data;
                 var issuesResponseIncluded = issuesResponse.body.included;
                 
-                console.log("-------- Step 4------------")
+                console.log("Successfully fetched scan results from Polaris")
                 var issues = [];
 
                 for (i = 0; i < issuesResponseData.length; i++) {
+                    if(Number(i % 50) === 0)
+                    {
+                        console.log(`Processing Issues ... ${i} / ${issuesResponseData.length}`)
+                    }
+                    
                     let issue = {issue_key: issuesResponseData[i].attributes['issue-key']};
                     issue.finding_key = issuesResponseData[i].attributes['finding-key'];
-                    issue.path_id = issuesResponseData[i].relationships.path.data.id;
-                    issue.issue_type_id = issuesResponseData[i].relationships['issue-type'].data.id;
-                    issue.run_id = issuesResponseData[i].relationships['latest-observed-on-run'].data.id;
-                    issue.severity = issuesResponseData[i].relationships.severity.data.id;
+                    
+                    //console.log(issue.issue_key);
+                    //console.log(issuesResponseData[i]);
+
+                    if(Object.keys(issuesResponseData[i].relationships.path).length !== 0){
+                        issue.path_id = issuesResponseData[i].relationships.path.data.id;
+                    }
+                    else{
+                        console.warn('Path ID not available for issue '+issue.issue_key);
+                        issue.path_id = 'none';
+                    }
+
+                    if(Object.keys(issuesResponseData[i].relationships['issue-type']).length !== 0){
+                        issue.issue_type_id = issuesResponseData[i].relationships['issue-type'].data.id;
+                    }
+                    else{
+                        console.warn('Issue Type ID not available for issue '+issue.issue_key);
+                        issue.issue_type_id = 'none';
+                    }
+
+                    if(Object.keys(issuesResponseData[i].relationships['latest-observed-on-run']).length !== 0){
+                        issue.run_id = issuesResponseData[i].relationships['latest-observed-on-run'].data.id;
+                    }
+                    else{
+                        console.warn('Run ID not available for issue '+issue.issue_key);
+                        issue.run_id = 'none';
+                    }
+
+                    if(Object.keys(issuesResponseData[i].relationships.severity).length !== 0){
+                        issue.severity = issuesResponseData[i].relationships.severity.data.id;
+                    }
+                    else{
+                        console.warn('Severity ID not available for issue '+issue.issue_key);
+                        issue.severity = 'none';
+                    }
 
                     if(issuesResponseData[i].relationships['related-taxa'].data.length !== 0){
                         issue.cwe_id = issuesResponseData[i].relationships['related-taxa'].data[0].id;
                     }
                     else{
+                        console.warn('CWE mapping not available for issue '+issue.issue_key);
                         issue.cwe_id = 'none';
                     }
 
@@ -118,21 +161,14 @@ try {
                     }   
                     issues.push(issue);
                 }
-                console.log('Issues list');
-                console.log(issues);
+                //console.log('Issues list');
+                //console.log(issues);
 
                 //generate SARIF Report
                 convertPipelineResultFileToSarifFile(issues, sarifOutputFileName);
             
-            } catch (error) {
-                //console.log(error.response.body);
-                console.log(error.reponse);
-                console.trace();
-                var stack = new Error().stack
-                console.log( stack )
-                assert.isNotOk(error,'Promise error');
-                done();
-                console.log('error in function polaris: ' + error)
+            }  
+            catch (error) {
                 console.trace("Polaris Parsing failed");
                 core.setFailed(error.message);
             }
@@ -236,8 +272,8 @@ try {
         };
 
         //SARIF Output
-        console.log('SARIF file created: ');
-        console.log(JSON.stringify(sarifFileJSONContent, null, 2));
+        //console.log('SARIF file created: ');
+        //console.log(JSON.stringify(sarifFileJSONContent, null, 2));
 
         // save to file
         fs.writeFileSync(outputFileName,JSON.stringify(sarifFileJSONContent, null, 2));
@@ -249,10 +285,6 @@ try {
     }
 }
 catch (error) {
-    console.log('error in function polaris: ' + error);
-    console.log('error in function polaris: ' + err);
-    var stack = new Error().stack
-    console.log( stack )
     console.trace("Polaris execution failed");
     core.setFailed(error.message);
 }

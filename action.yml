@@ -14,6 +14,10 @@ inputs:
   polarisProjectName:
     description: 'The name of the Polaris project'
     required: true
+  polarisAdditionalArgs:
+    description: 'Additional arguments for Polaris tool'
+    required: false
+    default: " "
     
 runs:
   using: 'node12'
