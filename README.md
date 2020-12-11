@@ -42,6 +42,26 @@ jobs:
         polarisServerUrl: ${{secrets.POLARIS_SERVER_URL}}
         polarisAccessToken: ${{secrets.POLARIS_ACCESS_TOKEN}}
         polarisProjectName: insecure-bank
+    
+    - name: Incremental Static Analysis with Polaris Action for Pull Request
+      uses: devsecops-test/polaris-action@v1
+      with:
+        polarisServerUrl: ${{secrets.POLARIS_SERVER_URL}}
+        polarisAccessToken: ${{secrets.POLARIS_ACCESS_TOKEN}}
+        polarisProjectName: insecure-bank
+        polarisAdditionalArgs: --coverity-ignore-capture-failure --incremental polaris-files-to-scan.txt | tee polaris-output.txt
+        githubUrl: https://api.github.com/repos/$GITHUB_REPOSITORY/pulls/$(jq --raw-output .pull_request.number "$GITHUB_EVENT_PATH")/files
+        githubCreds: "${{secrets.GITHUB_USERNAME}}: ${{secrets.GITHUB_TOKEN}}"     #Needed only if repository is private
+
+    - name: Incremental Static Analysis with Polaris Action for a single commit
+      uses: devsecops-test/polaris-action@v1
+      with:
+        polarisServerUrl: ${{secrets.POLARIS_SERVER_URL}}
+        polarisAccessToken: ${{secrets.POLARIS_ACCESS_TOKEN}}
+        polarisProjectName: insecure-bank
+        polarisAdditionalArgs: --coverity-ignore-capture-failure --incremental polaris-files-to-scan.txt | tee polaris-output.txt
+        githubUrl: https://api.github.com/repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA
+        githubCreds: "${{secrets.GITHUB_USERNAME}}: ${{secrets.GITHUB_TOKEN}}"     #Needed only if repository is private
 
     - name: Upload SARIF file
       uses: github/codeql-action/upload-sarif@v1

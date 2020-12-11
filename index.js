@@ -8,6 +8,8 @@ try {
     const polarisAccessToken = core.getInput('polarisAccessToken');
     const polarisProjectName = core.getInput('polarisProjectName');
     const polarisAdditionalArgs = core.getInput('polarisAdditionalArgs');
+    const githubUrl = core.getInput('githubUrl');
+    const githubCreds = core.getInput('githubCreds'); 
 
     const sarifOutputFileName = 'polaris-scan-results.sarif.json'
     var rcode = -1
@@ -18,8 +20,62 @@ try {
     const issuesAPI='/api/query/v1/issues'
     const eventsAPI='/api/code-analysis/v0/events-with-source'
 
+    let incremental=polarisAdditionalArgs.includes('--incremental');
+
     //invoke polaris scan
     console.log('Invoking polaris scan');
+    if(incremental){
+        console.log('Polaris Incremental Enabled');
+        
+        let curlCommand = 'curl -s ';
+        
+        if(githubCreds !== null && githubCreds !== ''){
+            curlCommand = curlCommand.concat(`-u ${githubCreds} -X GET -G ${githubUrl} `);
+        }
+        else{
+            curlCommand = curlCommand.concat(`-X GET -G ${githubUrl} `);
+        }
+
+        if(githubUrl.includes('pulls')){
+            curlCommand = curlCommand.concat(` | jq -r '.[] | .filename' | tr " " "\n" > polaris-files-to-scan.txt`);
+        }
+        else{
+            curlCommand = curlCommand.concat(` | jq .files | jq -r '.[] | .filename' | tr " " "\n" > polaris-files-to-scan.txt`);
+        }
+
+        console.log(curlCommand);
+
+        rcode = shell.exec(curlCommand).code;
+        if (rcode != 0){
+            core.error(`Error: Polaris Execution failed and returncode is ${rcode}`);
+            core.setFailed(error.message);
+        }
+        
+        console.log("Files changed in the commit")
+        shell.exec(`cat polaris-files-to-scan.txt`).code;
+        
+        shell.exec(`wget -q ${polarisServerUrl}/api/tools/polaris_cli-linux64.zip`)
+        shell.exec(`unzip -j polaris_cli-linux64.zip -d /tmp`)
+        rcode = shell.exec(`export POLARIS_SERVER_URL=${polarisServerUrl} && export POLARIS_ACCESS_TOKEN=${polarisAccessToken} && export POLARIS_FF_ENABLE_COVERITY_INCREMENTAL=true /tmp/polaris analyze -w ${polarisAdditionalArgs}`).code;
+
+        if (rcode != 0){
+            core.error(`Error: Polaris Execution failed and returncode is ${rcode}`);
+            core.setFailed(error.message);
+        } 
+
+    } else{
+        shell.exec(`wget -q ${polarisServerUrl}/api/tools/polaris_cli-linux64.zip`)
+        shell.exec(`unzip -j polaris_cli-linux64.zip -d /tmp`)
+        rcode = shell.exec(`export POLARIS_SERVER_URL=${polarisServerUrl} && export POLARIS_ACCESS_TOKEN=${polarisAccessToken} && /tmp/polaris analyze -w ${polarisAdditionalArgs}`).code;
+
+        if (rcode != 0){
+            core.error(`Error: Polaris Execution failed and returncode is ${rcode}`);
+            core.setFailed(error.message);
+        }
+    }
+
+    //invoke polaris scan
+    /*console.log('Invoking polaris scan');
     shell.exec(`wget -q ${polarisServerUrl}/api/tools/polaris_cli-linux64.zip`)
     shell.exec(`unzip -j polaris_cli-linux64.zip -d /tmp`)
     rcode = shell.exec(`export POLARIS_SERVER_URL=${polarisServerUrl} && export POLARIS_ACCESS_TOKEN=${polarisAccessToken} && /tmp/polaris analyze -w ${polarisAdditionalArgs}`).code;
@@ -27,11 +83,11 @@ try {
     if (rcode != 0){
         core.error(`Error: Polaris Execution failed and returncode is ${rcode}`);
         core.setFailed(error.message);
-    }
+    }*/
 
     console.log("Fetching Polaris Results")
 
-    getIssues()
+    //getIssues()
 
     function getIssues() {
         (async () => {

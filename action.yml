@@ -17,7 +17,15 @@ inputs:
   polarisAdditionalArgs:
     description: 'Additional arguments for Polaris tool'
     required: false
-    default: " "
+    default: ""
+  githubUrl:
+    description: 'Github URL for Polaris Incremental Scan'
+    required: false
+    default: ""
+  githubCreds:
+    description: 'Github Credentials for Polaris Incremental Scan'
+    required: false
+    default: ""
     
 runs:
   using: 'node12'
