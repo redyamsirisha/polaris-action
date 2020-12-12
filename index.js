@@ -13,6 +13,7 @@ try {
 
     const sarifOutputFileName = 'polaris-scan-results.sarif.json'
     var rcode = -1
+    var rcode1 = -1
 
     //Polaris API
     const authAPI='/api/auth/v1/authenticate'
@@ -47,7 +48,7 @@ try {
 
         rcode = shell.exec(curlCommand).code;
         if (rcode != 0){
-            core.error(`Error: Polaris Execution failed and returncode is ${rcode}`);
+            core.error(`Error: Fetching files changed from GitHub failed and returncode is ${rcode}`);
             core.setFailed(error.message);
         }
         
@@ -56,10 +57,10 @@ try {
         
         shell.exec(`wget -q ${polarisServerUrl}/api/tools/polaris_cli-linux64.zip`)
         shell.exec(`unzip -j polaris_cli-linux64.zip -d /tmp`)
-        rcode = shell.exec(`export POLARIS_SERVER_URL=${polarisServerUrl} && export POLARIS_ACCESS_TOKEN=${polarisAccessToken} && export POLARIS_FF_ENABLE_COVERITY_INCREMENTAL=true && /tmp/polaris analyze -w ${polarisAdditionalArgs}`).code;
+        rcode1 = shell.exec(`export POLARIS_SERVER_URL=${polarisServerUrl} && export POLARIS_ACCESS_TOKEN=${polarisAccessToken} && export POLARIS_FF_ENABLE_COVERITY_INCREMENTAL=true && /tmp/polaris analyze -w ${polarisAdditionalArgs}`).code;
 
-        if (rcode != 0){
-            core.error(`Error: Polaris Execution failed and returncode is ${rcode}`);
+        if (rcode1 != 0){
+            core.error(`Error: Polaris Scan failed and returncode is ${rcode1}`);
             core.setFailed(error.message);
         } 
 
