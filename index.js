@@ -76,7 +76,7 @@ try {
 
     console.log("Fetching Polaris Results")
 
-    //getIssues()
+    getIssues()
 
     function getIssues() {
         (async () => {
